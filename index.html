@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>LCG 團務切換比對器 (完整功能版)</title>
+  <title>LCG 團務切換比對器 (1.2 擴充包顯示修復版)</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1e1e24; color: #f0f0f5; padding: 20px; margin: 0; }
     h2 { margin-top: 0; color: #e2b714; margin-bottom: 15px; }
@@ -66,9 +66,8 @@
       margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;
     }
 
-    /* 新增：操作按鈕區塊 */
     .action-buttons {
-      display: flex; gap: 15px; margin-top: 10px;
+      display: flex; gap: 15px; margin-top: 10px; align-items: center; flex-wrap: wrap;
     }
     button.compare-btn { 
       background: #e2b714; color: #1e1e24; border: none; padding: 12px 24px; 
@@ -83,6 +82,15 @@
       transition: 0.2s;
     }
     button.clear-btn:hover { background: #c62828; }
+
+    .checkbox-group {
+      display: flex; gap: 15px; background: #2b2b36; padding: 10px 16px; border-radius: 6px;
+      align-items: center; border: 1px solid #444;
+    }
+    .checkbox-group label {
+      display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; font-weight: bold; color: #ddd;
+    }
+    .checkbox-group input[type="checkbox"] { accent-color: #e2b714; transform: scale(1.2); cursor: pointer; }
     
     .results { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 25px; align-items: start; }
     @media (max-width: 1200px) { .results { grid-template-columns: 1fr; } }
@@ -199,6 +207,17 @@
   <div class="action-buttons">
     <button class="compare-btn" onclick="startCompare()" data-i18n="compareBtn">🚀 立即比對衝突卡牌</button>
     <button class="clear-btn" onclick="clearAllData()" data-i18n="clearBtn">🗑️ 清除資料</button>
+    
+    <div class="checkbox-group">
+      <label>
+        <input type="checkbox" id="showPackChk" checked onchange="toggleDisplayOptions()"> 
+        <span data-i18n="showPack">顯示擴充包</span>
+      </label>
+      <label>
+        <input type="checkbox" id="showSideChk" checked onchange="toggleDisplayOptions()"> 
+        <span data-i18n="showSide">顯示副牌組</span>
+      </label>
+    </div>
   </div>
 
   <div class="results">
@@ -244,6 +263,8 @@
         selectFile: "選擇 .md 或 .txt 檔案",
         compareBtn: "🚀 立即比對衝突卡牌",
         clearBtn: "🗑️ 清除資料",
+        showPack: "顯示擴充包",
+        showSide: "顯示副牌組",
         keepTitle: "⚡ 直接移交 (免歸位)",
         keepDesc: "請從以下 <b>Team A</b> 牌組中抽出，交給新團：",
         returnTitle: "📦 放回卡冊 (Team A 結算)",
@@ -271,6 +292,8 @@
         selectFile: "Select .md or .txt file",
         compareBtn: "🚀 Compare Conflicting Cards",
         clearBtn: "🗑️ Clear Data",
+        showPack: "Show Pack",
+        showSide: "Show Side Deck",
         keepTitle: "⚡ Direct Transfer (Keep)",
         keepDesc: "Extract from <b>Team A</b> and give directly to the new group:",
         returnTitle: "📦 Return to Binder (Team A)",
@@ -319,6 +342,12 @@
             document.getElementById('keepCount').innerText = `0${copyStr}`;
             document.getElementById('returnCount').innerText = `0${copyStr}`;
             document.getElementById('fetchCount').innerText = `0${copyStr}`;
+        }
+    }
+
+    function toggleDisplayOptions() {
+        if (document.getElementById('keepList').innerHTML !== '' && !document.getElementById('keepList').innerHTML.includes('無卡牌') && !document.getElementById('keepList').innerHTML.includes('No Cards')) {
+            startCompare();
         }
     }
 
@@ -386,7 +415,6 @@
     let filesDataA = [];
     let filesDataB = [];
 
-    // 新增：清除所有資料函式
     function clearAllData() {
         filesDataA = [];
         filesDataB = [];
@@ -404,7 +432,7 @@
 
     function switchGame(game) {
         currentGame = game;
-        clearAllData(); // 切換遊戲時也自動呼叫清除
+        clearAllData(); 
         
         const dbName = game === 'arkham' ? 'ArkhamDB' : 'MarvelCDB';
         document.getElementById('apiInputA').placeholder = i18n[currentLang].apiPlaceholder.replace('{db}', dbName);
@@ -451,13 +479,7 @@
       }
 
       if (!deck) {
-          if (currentGame === 'marvel') {
-              alert(currentLang === 'zh' 
-                ? "抓取失敗！\n1. 請確認 ID 是否正確。\n2. 若為私人牌組，請至 MarvelCDB -> My Profile -> 勾選「Share your decks」。" 
-                : "Fetch failed!\n1. Check ID.\n2. If private, check 'Share your decks' in MarvelCDB profile.");
-          } else {
-              alert(currentLang === 'zh' ? "抓取失敗！請確認 ID 正確且已開啟分享。" : "Fetch failed! Check ID and sharing permissions.");
-          }
+          alert(currentLang === 'zh' ? "抓取失敗！請確認 ID 正確且已開啟分享。" : "Fetch failed! Check ID and sharing permissions.");
           return;
       }
 
@@ -506,7 +528,8 @@
                 cardsByType[type].forEach(item => {
                     if (item.card.slot && currentGame === 'arkham') text += `_${item.card.slot}_\n`;
                     const xpStr = (item.card.xp && item.card.xp > 0 && currentGame === 'arkham') ? `(${item.card.xp})` : '';
-                    const packStr = (currentGame === 'marvel' && item.card.pack_name) ? `(${item.card.pack_name})` : '';
+                    // 確保 Arkham 與 Marvel 都能寫入 pack_name
+                    const packStr = item.card.pack_name ? `(${item.card.pack_name})` : '';
                     text += `- ${item.card.name} ${xpStr} ${packStr} x${item.count}\n`;
                 });
                 text += `\n`;
@@ -560,7 +583,18 @@
       callback(loadedContents);
     }
 
-    function parseDeckTextGroups(text) {
+    function parseMultipleDecks(filesArray) {
+      let allInvs = {};
+      filesArray.forEach(singleText => {
+        const parsed = parseSingleDeckText(singleText);
+        for (const key in parsed) {
+          allInvs[key] = parsed[key];
+        }
+      });
+      return allInvs;
+    }
+
+    function parseSingleDeckText(text) {
       const invs = {}; 
       const lines = text.split('\n');
       const dbName = dbs[currentGame].byName;
@@ -570,7 +604,6 @@
       let currentKey = '未命名牌組';
       let isSideDeck = false;
       let currentType = '其他';
-      let firstValidLine = true;
 
       lines.forEach(rawLine => {
         let line = rawLine.replace(/^\uFEFF/, '').trim();
@@ -578,10 +611,11 @@
 
         if (line.startsWith('Packs:') || line.startsWith('平行:') || line.startsWith('特性選擇:')) return;
 
-        if (currentDeckName === '未命名牌組' && !line.match(/^\d+x/)) {
-            currentDeckName = line.replace(/^#\s*/, '');
-            currentKey = currentDeckName;
-            return;
+        if (line.startsWith('# ')) {
+          currentDeckName = line.substring(2).trim();
+          currentKey = `${currentDeckName}(${currentInvName})`;
+          isSideDeck = false;
+          return;
         }
 
         const lLow = line.toLowerCase();
@@ -605,13 +639,19 @@
             if (matchedCategory) return;
         }
 
-        if (currentInvName === '未提供' && !line.match(/^\d+x/)) {
-            let invCheck = line.replace(/^調查員:\s*/, '').replace(/^Investigator:\s*/i, '');
-            if (invCheck !== line) {
+        if (currentDeckName === '未命名牌組' && !line.match(/^\d+x/) && !line.startsWith('調查員') && !line.startsWith('Investigator')) {
+            currentDeckName = line.replace(/^#\s*/, '');
+            currentKey = `${currentDeckName}(${currentInvName})`;
+            return;
+        }
+
+        if (line.startsWith('調查員:') || line.toLowerCase().startsWith('investigator:')) {
+            let invCheck = line.replace(/^調查員:\s*/, '').replace(/^Investigator:\s*/i, '').trim();
+            if (invCheck) {
                 currentInvName = invCheck;
                 currentKey = `${currentDeckName}(${currentInvName})`;
-                return;
             }
+            return;
         }
 
         if (line.includes('副牌組') || line.toLowerCase().includes('side deck')) { isSideDeck = true; return; }
@@ -641,10 +681,10 @@
         }
 
         if (!name) return;
-        
+
+        let cardData = { faction: 'unknown', cost: null, pack_name: '' };
         const pureName = sanitizeDbName(name);
         const candidates = dbName[pureName] || [];
-        let cardData = { faction: 'unknown', cost: null };
         
         if (candidates.length > 0) {
             if (currentGame === 'marvel') {
@@ -669,10 +709,14 @@
 
         if (currentGame === 'marvel' && cardData.faction === 'hero') return;
 
-        const uniqueKey = `${name}__${xp}__${packText}`; 
+        // 如果文字檔沒有 packText，但資料庫有 pack_name，則賦予給 packText 供顯示使用
+        const finalPackText = packText || cardData.pack_name || '';
+
+        const uniqueKey = `${name}__${xp}`; 
+        const showPack = document.getElementById('showPackChk').checked;
         let displayName = name;
         if (currentGame === 'arkham' && xp > 0) displayName += ` (${xp})`;
-        else if (currentGame === 'marvel' && packText) displayName += ` (${packText})`;
+        if (finalPackText && showPack) displayName += ` (${finalPackText})`;
 
         if (!invs[currentKey]) invs[currentKey] = {};
         if (!invs[currentKey][uniqueKey]) {
@@ -680,6 +724,8 @@
               name: displayName, count: 0, type: currentType, 
               isSideDeck: isSideDeck, faction: cardData.faction, cost: cardData.cost
           };
+        } else {
+          invs[currentKey][uniqueKey].name = displayName;
         }
         invs[currentKey][uniqueKey].count += qty;
       });
@@ -693,8 +739,27 @@
         return;
       }
 
-      const invsA = parseDeckTextGroups(filesDataA.join('\n'));
-      const invsB = parseDeckTextGroups(filesDataB.join('\n'));
+      const showSide = document.getElementById('showSideChk').checked;
+
+      let rawInvsA = parseMultipleDecks(filesDataA);
+      let rawInvsB = parseMultipleDecks(filesDataB);
+
+      function filterSideDecks(invsObj) {
+        let filtered = {};
+        for (const inv in invsObj) {
+          filtered[inv] = {};
+          for (const key in invsObj[inv]) {
+            if (!showSide && invsObj[inv][key].isSideDeck) continue;
+            filtered[inv][key] = invsObj[inv][key];
+          }
+          if (Object.keys(filtered[inv]).length === 0) delete filtered[inv];
+        }
+        return filtered;
+      }
+
+      const invsA = filterSideDecks(rawInvsA);
+      const invsB = filterSideDecks(rawInvsB);
+
       const totalsA = {}; const totalsB = {}; const allKeys = new Set();
 
       for (const inv in invsA) {
