@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>LCG 團務切換比對器 (完整功能版)</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1e1e24; color: #f0f0f5; padding: 20px; margin: 0; }
+    h2 { margin-top: 0; color: #e2b714; margin-bottom: 15px; }
+    
+    .top-controls {
+      display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap;
+    }
+    .game-selector, .lang-selector {
+      display: flex; gap: 10px; background: #2b2b36; padding: 10px; border-radius: 8px;
+      align-items: center; border-left: 4px solid #e2b714; margin-bottom: 0;
+    }
+    .lang-selector { border-left-color: #4caf50; }
+    
+    .game-selector label, .lang-selector label {
+      display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 15px; font-weight: bold;
+      padding: 6px 12px; border-radius: 6px; transition: 0.2s;
+    }
+    .game-selector label:hover, .lang-selector label:hover { background: #383846; }
+    .game-selector input[type="radio"] { accent-color: #e2b714; transform: scale(1.2); }
+    .lang-selector input[type="radio"] { accent-color: #4caf50; transform: scale(1.2); }
+
+    .container { display: flex; gap: 20px; margin-bottom: 20px; }
+    @media (max-width: 768px) { .container { flex-direction: column; } }
+    .deck-input { flex: 1; display: flex; flex-direction: column; }
+    
+    .drop-zone {
+      border: 2px dashed #555; border-radius: 8px; padding: 24px 16px;
+      text-align: center; background: #2b2b36; transition: all 0.2s ease;
+      min-height: 140px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    .drop-zone.dragover { border-color: #e2b714; background: #363644; }
+    .file-input { display: none; }
+    
+    .api-group { display: flex; gap: 8px; width: 100%; max-width: 280px; margin-bottom: 12px; }
+    .api-input {
+      flex: 1; padding: 8px 12px; border-radius: 4px; border: 1px solid #555; 
+      background: #1e1e24; color: #fff; font-size: 13px; outline: none;
+    }
+    .api-input:focus { border-color: #e2b714; }
+    .api-btn {
+      background: #81c784; color: #1e1e24; border: none; padding: 8px 16px; 
+      border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; white-space: nowrap;
+    }
+    .api-btn:hover { background: #66bb6a; }
+    .divider { font-size: 12px; color: #666; margin: 8px 0; display: flex; align-items: center; width: 100%; max-width: 280px;}
+    .divider::before, .divider::after { content: ""; flex: 1; border-bottom: 1px solid #444; margin: 0 8px; }
+
+    .select-btn {
+      background: #444; color: #fff; border: none; padding: 8px 16px;
+      border-radius: 4px; cursor: pointer; font-size: 13px; transition: 0.2s;
+    }
+    .select-btn:hover { background: #555; }
+
+    .file-list {
+      margin-top: 16px; font-size: 13px; color: #aaa;
+      max-height: 120px; overflow-y: auto; width: 100%; text-align: left;
+    }
+    .file-item {
+      background: #1e1e24; padding: 6px 10px; border-radius: 4px;
+      margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center;
+    }
+
+    /* 新增：操作按鈕區塊 */
+    .action-buttons {
+      display: flex; gap: 15px; margin-top: 10px;
+    }
+    button.compare-btn { 
+      background: #e2b714; color: #1e1e24; border: none; padding: 12px 24px; 
+      font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; 
+      transition: 0.2s;
+    }
+    button.compare-btn:hover { background: #f3ca28; }
+    
+    button.clear-btn { 
+      background: #444; color: #fff; border: none; padding: 12px 24px; 
+      font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; 
+      transition: 0.2s;
+    }
+    button.clear-btn:hover { background: #c62828; }
+    
+    .results { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 25px; align-items: start; }
+    @media (max-width: 1200px) { .results { grid-template-columns: 1fr; } }
+    
+    .result-box { background: #2b2b36; border-radius: 8px; padding: 20px; display: flex; flex-direction: column; }
+    .box-keep { border-top: 4px solid #4caf50; }
+    .box-return { border-top: 4px solid #f44336; }
+    .box-fetch { border-top: 4px solid #2196f3; }
+    
+    .result-title { font-weight: bold; font-size: 18px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;}
+    .result-desc { font-size: 13px; color: #aaa; margin-bottom: 16px; border-bottom: 1px solid #383846; padding-bottom: 12px;}
+
+    .inv-grid { display: grid; grid-template-columns: 1fr; gap: 24px 20px; }
+    .inv-grid.two-cols { grid-template-columns: 1fr 1fr; }
+    .inv-block { display: flex; flex-direction: column; }
+
+    ul { list-style: none; padding: 0; margin: 0; flex: 1; }
+    li { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+    
+    .inv-header {
+      background: #414152; color: #fff; padding: 8px 10px;
+      font-size: 14px; font-weight: bold; border-radius: 4px;
+      border-bottom: 3px solid #e2b714; display: flex; justify-content: space-between; align-items: center;
+    }
+    
+    .deck-type-header {
+      color: #e2b714; font-size: 13px; font-weight: bold; 
+      margin-top: 12px; padding-bottom: 4px; border-bottom: 1px solid #383846;
+    }
+    
+    .card-type-header {
+      color: #bbb; font-size: 12px; font-weight: bold;
+      margin-top: 8px; padding-left: 12px;
+    }
+    
+    li.card-item {
+      padding: 6px 8px 6px 24px;
+      border-bottom: 1px dashed #383846;
+    }
+    
+    .faction-dot {
+      display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+      margin-right: 8px; flex-shrink: 0; box-shadow: 0 0 2px rgba(0,0,0,0.5);
+    }
+    .card-cost {
+      color: #888; font-family: monospace; font-size: 13px;
+      margin-right: 6px; font-weight: bold;
+    }
+    .card-name-wrapper { display: flex; align-items: center; }
+    .badge { background: #444; padding: 2px 8px; border-radius: 10px; font-size: 11px; white-space: nowrap; }
+    .badge-green { background: #2e7d32; color: #fff; }
+    .badge-red { background: #c62828; color: #fff; }
+    .badge-blue { background: #1565c0; color: #fff; }
+  </style>
+</head>
+<body>
+
+  <h2 data-i18n="appTitle">🃏 LCG 團務切換比對器</h2>
+  
+  <div class="top-controls">
+    <div class="game-selector">
+      <label>
+        <input type="radio" name="gameType" value="arkham" checked onchange="switchGame('arkham')"> 
+        🐙 Arkham Horror LCG
+      </label>
+      <label>
+        <input type="radio" name="gameType" value="marvel" onchange="switchGame('marvel')"> 
+        🦸 Marvel Champions LCG
+      </label>
+    </div>
+    
+    <div class="lang-selector">
+      <label>
+        <input type="radio" name="langType" value="zh" checked onchange="switchLang('zh')"> 
+        🇹🇼 中文
+      </label>
+      <label>
+        <input type="radio" name="langType" value="en" onchange="switchLang('en')"> 
+        🇺🇸 English
+      </label>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="deck-input">
+      <h3 data-i18n="teamA_title">剛結束的團 (Team A)</h3>
+      <div class="drop-zone" id="dropA">
+        <div class="api-group">
+          <input type="text" id="apiInputA" class="api-input" placeholder="輸入牌組 ID 或網址">
+          <button class="api-btn" onclick="importFromApi('A')" data-i18n="importBtn">匯入</button>
+        </div>
+        <div class="divider" data-i18n="orFile">或使用卡表檔案</div>
+        <button class="select-btn" onclick="document.getElementById('fileA').click()" data-i18n="selectFile">選擇 .md 或 .txt 檔案</button>
+        <input type="file" id="fileA" class="file-input" multiple accept=".md,.txt">
+        <div class="file-list" id="fileListA"></div>
+      </div>
+    </div>
+
+    <div class="deck-input">
+      <h3 data-i18n="teamB_title">即將開始的團 (Team B)</h3>
+      <div class="drop-zone" id="dropB">
+        <div class="api-group">
+          <input type="text" id="apiInputB" class="api-input" placeholder="輸入牌組 ID 或網址">
+          <button class="api-btn" onclick="importFromApi('B')" data-i18n="importBtn">匯入</button>
+        </div>
+        <div class="divider" data-i18n="orFile">或使用卡表檔案</div>
+        <button class="select-btn" onclick="document.getElementById('fileB').click()" data-i18n="selectFile">選擇 .md 或 .txt 檔案</button>
+        <input type="file" id="fileB" class="file-input" multiple accept=".md,.txt">
+        <div class="file-list" id="fileListB"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-buttons">
+    <button class="compare-btn" onclick="startCompare()" data-i18n="compareBtn">🚀 立即比對衝突卡牌</button>
+    <button class="clear-btn" onclick="clearAllData()" data-i18n="clearBtn">🗑️ 清除資料</button>
+  </div>
+
+  <div class="results">
+    <div class="result-box box-keep">
+      <div class="result-title" style="color: #81c784;">
+        <span data-i18n="keepTitle">⚡ 直接移交 (免歸位)</span>
+        <span id="keepCount" class="badge badge-green">0</span>
+      </div>
+      <div class="result-desc" data-i18n="keepDesc">請從以下 <b>Team A</b> 牌組中抽出，交給新團：</div>
+      <div id="keepList"></div>
+    </div>
+
+    <div class="result-box box-return">
+      <div class="result-title" style="color: #e57373;">
+        <span data-i18n="returnTitle">📦 放回卡冊 (Team A 結算)</span>
+        <span id="returnCount" class="badge badge-red">0</span>
+      </div>
+      <div class="result-desc" data-i18n="returnDesc">新團不需要，請從 <b>Team A</b> 抽出並歸位：</div>
+      <div id="returnList"></div>
+    </div>
+
+    <div class="result-box box-fetch">
+      <div class="result-title" style="color: #64b5f6;">
+        <span data-i18n="fetchTitle">🔍 從卡冊補抽 (Team B 需求)</span>
+        <span id="fetchCount" class="badge badge-blue">0</span>
+      </div>
+      <div class="result-desc" data-i18n="fetchDesc">舊團沒用到，請從卡冊拿取並交給 <b>Team B</b>：</div>
+      <div id="fetchList"></div>
+    </div>
+  </div>
+
+  <script>
+    let currentGame = 'arkham';
+    let currentLang = 'zh';
+    
+    const i18n = {
+      zh: {
+        appTitle: "🃏 LCG 團務切換比對器",
+        teamA_title: "剛結束的團 (Team A)",
+        teamB_title: "即將開始的團 (Team B)",
+        importBtn: "匯入",
+        orFile: "或使用卡表檔案",
+        selectFile: "選擇 .md 或 .txt 檔案",
+        compareBtn: "🚀 立即比對衝突卡牌",
+        clearBtn: "🗑️ 清除資料",
+        keepTitle: "⚡ 直接移交 (免歸位)",
+        keepDesc: "請從以下 <b>Team A</b> 牌組中抽出，交給新團：",
+        returnTitle: "📦 放回卡冊 (Team A 結算)",
+        returnDesc: "新團不需要，請從 <b>Team A</b> 抽出並歸位：",
+        fetchTitle: "🔍 從卡冊補抽 (Team B 需求)",
+        fetchDesc: "舊團沒用到，請從卡冊拿取並交給 <b>Team B</b>：",
+        alertEmpty: "請先在兩邊分別提供至少一個牌組 (透過 ID 匯入或上傳檔案)！",
+        alertNoId: "請輸入牌組 ID 或完整網址！",
+        apiPlaceholder: "輸入 {db} 牌組 ID 或網址",
+        subtotal: "小計:",
+        copies: "張",
+        noCard: "無卡牌",
+        imported: "匯入牌組",
+        success: "成功",
+        unknownInv: "未知調查員",
+        mainDeck: "牌組:",
+        sideDeck: "副牌組:"
+      },
+      en: {
+        appTitle: "🃏 LCG Deck Transition Comparer",
+        teamA_title: "Previous Group (Team A)",
+        teamB_title: "Upcoming Group (Team B)",
+        importBtn: "Import",
+        orFile: "Or use decklist file",
+        selectFile: "Select .md or .txt file",
+        compareBtn: "🚀 Compare Conflicting Cards",
+        clearBtn: "🗑️ Clear Data",
+        keepTitle: "⚡ Direct Transfer (Keep)",
+        keepDesc: "Extract from <b>Team A</b> and give directly to the new group:",
+        returnTitle: "📦 Return to Binder (Team A)",
+        returnDesc: "Not needed by the new group. Extract from <b>Team A</b> and return:",
+        fetchTitle: "🔍 Fetch from Binder (Team B)",
+        fetchDesc: "Not in Team A. Fetch from binder for <b>Team B</b>:",
+        alertEmpty: "Please provide at least one deck on both sides (via ID or file upload)!",
+        alertNoId: "Please enter a Deck ID or URL!",
+        apiPlaceholder: "Enter {db} Deck ID or URL",
+        subtotal: "Subtotal:",
+        copies: "x",
+        noCard: "No Cards",
+        imported: "Imported Deck",
+        success: "Success",
+        unknownInv: "Unknown Investigator",
+        mainDeck: "Deck:",
+        sideDeck: "Side Deck:"
+      }
+    };
+
+    function getTypeName(typeKey) {
+        if (currentLang === 'zh') return typeKey;
+        if (typeKey === '支援') return currentGame === 'arkham' ? 'Asset' : 'Support';
+        const enTypes = {
+            '事件': 'Event', '技能': 'Skill', '敵人': 'Enemy', '詭計': 'Treachery',
+            '盟友': 'Ally', '升級': 'Upgrade', '資源': 'Resource', '支線密謀': 'Side Scheme', '其他': 'Other'
+        };
+        return enTypes[typeKey] || typeKey;
+    }
+
+    function switchLang(lang) {
+        currentLang = lang;
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (i18n[lang][key]) el.innerHTML = i18n[lang][key];
+        });
+        
+        const dbName = currentGame === 'arkham' ? 'ArkhamDB' : 'MarvelCDB';
+        document.getElementById('apiInputA').placeholder = i18n[lang].apiPlaceholder.replace('{db}', dbName);
+        document.getElementById('apiInputB').placeholder = i18n[lang].apiPlaceholder.replace('{db}', dbName);
+
+        if (document.getElementById('keepList').innerHTML !== '' && !document.getElementById('keepList').innerHTML.includes('無卡牌') && !document.getElementById('keepList').innerHTML.includes('No Cards')) {
+            startCompare();
+        } else {
+            const copyStr = currentLang === 'zh' ? ` ${i18n[currentLang].copies}` : i18n[currentLang].copies;
+            document.getElementById('keepCount').innerText = `0${copyStr}`;
+            document.getElementById('returnCount').innerText = `0${copyStr}`;
+            document.getElementById('fetchCount').innerText = `0${copyStr}`;
+        }
+    }
+
+    const dbs = { arkham: { byName: {}, byCode: {} }, marvel: { byName: {}, byCode: {} } };
+    
+    const factionColors = {
+        'guardian': '#2b80c5', 'seeker': '#ec8426', 'rogue': '#107116', 'mystic': '#4331b9', 
+        'survivor': '#cc3038', 'neutral': '#888888', 'justice': '#f5b041', 'aggression': '#e74c3c', 
+        'protection': '#27ae60', 'leadership': '#3498db', 'basic': '#95a5a6', 'hero': '#9b59b6', 
+        'pool': '#e57373', 'unknown': '#444444' 
+    };
+
+    const factionWeight = {
+        'guardian': 1, 'seeker': 2, 'rogue': 3, 'mystic': 4, 'survivor': 5, 'neutral': 6,
+        'hero': 1, 'aggression': 2, 'justice': 3, 'leadership': 4, 'protection': 5, 'pool': 6, 'basic': 7, 'unknown': 99
+    };
+
+    function sanitizeDbName(name) { return name.replace(/[\s\(\)（）\-\'\"’‘,.:!]/g, '').toLowerCase(); }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        switchLang('zh'); 
+        try {
+            const [arkRes, marRes] = await Promise.all([
+                fetch('https://zh.arkhamdb.com/api/public/cards/').catch(()=>null),
+                fetch('https://marvelcdb.com/api/public/cards/').catch(()=>null)
+            ]);
+            
+            if(arkRes && arkRes.ok) {
+                const arkCards = await arkRes.json();
+                arkCards.forEach(c => {
+                    if (c.name) {
+                        let costVal = c.cost;
+                        if (costVal === -2) costVal = 'X'; 
+                        const processedCard = {
+                            name: c.name, xp: c.xp, faction: c.faction_code,
+                            cost: costVal, type_code: c.type_code, slot: c.slot, pack_name: c.pack_name
+                        };
+                        const pureName = sanitizeDbName(c.name);
+                        if (!dbs.arkham.byName[pureName]) dbs.arkham.byName[pureName] = [];
+                        dbs.arkham.byName[pureName].push(processedCard);
+                        dbs.arkham.byCode[c.code] = processedCard;
+                    }
+                });
+            }
+            if(marRes && marRes.ok) {
+                const marCards = await marRes.json();
+                marCards.forEach(c => {
+                    if (c.name) {
+                        const processedCard = {
+                            name: c.name, xp: null, faction: c.faction_code,
+                            cost: c.cost, type_code: c.type_code, slot: null, pack_name: c.pack_name
+                        };
+                        const pureName = sanitizeDbName(c.name);
+                        if (!dbs.marvel.byName[pureName]) dbs.marvel.byName[pureName] = [];
+                        dbs.marvel.byName[pureName].push(processedCard);
+                        dbs.marvel.byCode[c.code] = processedCard;
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('Network error building dictionary', e);
+        }
+    });
+
+    let filesDataA = [];
+    let filesDataB = [];
+
+    // 新增：清除所有資料函式
+    function clearAllData() {
+        filesDataA = [];
+        filesDataB = [];
+        document.getElementById('fileListA').innerHTML = '';
+        document.getElementById('fileListB').innerHTML = '';
+        document.getElementById('keepList').innerHTML = '';
+        document.getElementById('returnList').innerHTML = '';
+        document.getElementById('fetchList').innerHTML = '';
+        
+        const copyStr = currentLang === 'zh' ? ` ${i18n[currentLang].copies}` : i18n[currentLang].copies;
+        document.getElementById('keepCount').innerText = `0${copyStr}`;
+        document.getElementById('returnCount').innerText = `0${copyStr}`;
+        document.getElementById('fetchCount').innerText = `0${copyStr}`;
+    }
+
+    function switchGame(game) {
+        currentGame = game;
+        clearAllData(); // 切換遊戲時也自動呼叫清除
+        
+        const dbName = game === 'arkham' ? 'ArkhamDB' : 'MarvelCDB';
+        document.getElementById('apiInputA').placeholder = i18n[currentLang].apiPlaceholder.replace('{db}', dbName);
+        document.getElementById('apiInputB').placeholder = i18n[currentLang].apiPlaceholder.replace('{db}', dbName);
+    }
+
+    async function importFromApi(team) {
+      const inputId = team === 'A' ? 'apiInputA' : 'apiInputB';
+      const fileListId = team === 'A' ? 'fileListA' : 'fileListB';
+      const rawVal = document.getElementById(inputId).value.trim();
+      
+      if (!rawVal) { alert(i18n[currentLang].alertNoId); return; }
+
+      const idMatch = rawVal.match(/\d+/);
+      if (!idMatch) { alert(currentLang === 'zh' ? "無法辨識的 ID 或網址！" : "Invalid ID or URL!"); return; }
+      const idVal = idMatch[0];
+
+      const baseUrl = currentGame === 'arkham' ? 'https://zh.arkhamdb.com' : 'https://marvelcdb.com';
+      const endpoints = [
+          `${baseUrl}/api/public/deck/${idVal}`,
+          `${baseUrl}/api/public/decklist/${idVal}`
+      ];
+
+      let deck = null;
+
+      for (const url of endpoints) {
+          try {
+              let res = await fetch(url);
+              if (res.ok) {
+                  deck = await res.json();
+                  break;
+              }
+          } catch (e) {
+              try {
+                  let proxyRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+                  if (proxyRes.ok) {
+                      deck = await proxyRes.json();
+                      break;
+                  }
+              } catch (proxyErr) {
+                  continue;
+              }
+          }
+      }
+
+      if (!deck) {
+          if (currentGame === 'marvel') {
+              alert(currentLang === 'zh' 
+                ? "抓取失敗！\n1. 請確認 ID 是否正確。\n2. 若為私人牌組，請至 MarvelCDB -> My Profile -> 勾選「Share your decks」。" 
+                : "Fetch failed!\n1. Check ID.\n2. If private, check 'Share your decks' in MarvelCDB profile.");
+          } else {
+              alert(currentLang === 'zh' ? "抓取失敗！請確認 ID 正確且已開啟分享。" : "Fetch failed! Check ID and sharing permissions.");
+          }
+          return;
+      }
+
+      try {
+          const mdText = generateMarkdownFromDeck(deck);
+          if (team === 'A') filesDataA.push(mdText);
+          else filesDataB.push(mdText);
+
+          const listEl = document.getElementById(fileListId);
+          const item = document.createElement('div');
+          item.className = 'file-item';
+          item.innerHTML = `<span>🌐 ${deck.name || i18n[currentLang].imported}</span><span style="color:#81c784; font-weight:bold;">${i18n[currentLang].success}</span>`;
+          listEl.appendChild(item);
+          
+          document.getElementById(inputId).value = ''; 
+      } catch (err) {
+          alert(currentLang === 'zh' ? "解析錯誤" : "Parse error");
+      }
+    }
+
+    function generateMarkdownFromDeck(deck) {
+        let md = `# ${deck.name || '匯入牌組'}\n`;
+        const dbCode = dbs[currentGame].byCode;
+        const invCard = dbCode[deck.investigator_code];
+        md += `調查員: ${invCard ? invCard.name.replace(/[\(（].*$/, '').trim() : '未提供'}\n\n`;
+
+        const typeMapArkham = { 'asset': '**支援**', 'event': '**事件**', 'skill': '**技能**', 'enemy': '**敵人**', 'treachery': '**詭計**' };
+        const typeMapMarvel = { 'ally': '**盟友**', 'event': '**事件**', 'support': '**支援**', 'upgrade': '**升級**', 'resource': '**資源**', 'player_side_scheme': '**支線密謀**' };
+        const typeMap = currentGame === 'arkham' ? typeMapArkham : typeMapMarvel;
+
+        function buildSlots(slotsObj) {
+            let text = '';
+            const cardsByType = {};
+            for (const code in slotsObj) {
+                const card = dbCode[code];
+                if (!card) continue;
+                if (currentGame === 'marvel' && card.faction === 'hero') continue;
+
+                const type = card.type_code;
+                if (!cardsByType[type]) cardsByType[type] = [];
+                cardsByType[type].push({ card, count: slotsObj[code] });
+            }
+            
+            for (const type in cardsByType) {
+                text += `${typeMap[type] || '**其他**'}\n`;
+                cardsByType[type].forEach(item => {
+                    if (item.card.slot && currentGame === 'arkham') text += `_${item.card.slot}_\n`;
+                    const xpStr = (item.card.xp && item.card.xp > 0 && currentGame === 'arkham') ? `(${item.card.xp})` : '';
+                    const packStr = (currentGame === 'marvel' && item.card.pack_name) ? `(${item.card.pack_name})` : '';
+                    text += `- ${item.card.name} ${xpStr} ${packStr} x${item.count}\n`;
+                });
+                text += `\n`;
+            }
+            return text;
+        }
+
+        md += buildSlots(deck.slots || {});
+        if (deck.sideSlots && Object.keys(deck.sideSlots).length > 0 && currentGame === 'arkham') {
+            md += `\n副牌組\n`;
+            md += buildSlots(deck.sideSlots);
+        }
+        return md;
+    }
+
+    setupDropZone('dropA', 'fileA', 'fileListA', (contents) => { filesDataA.push(...contents); });
+    setupDropZone('dropB', 'fileB', 'fileListB', (contents) => { filesDataB.push(...contents); });
+
+    function setupDropZone(dropZoneId, inputId, listId, onFilesLoaded) {
+      const dropZone = document.getElementById(dropZoneId);
+      const input = document.getElementById(inputId);
+
+      ['dragenter', 'dragover'].forEach(name => {
+        dropZone.addEventListener(name, (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); });
+      });
+      ['dragleave', 'drop'].forEach(name => {
+        dropZone.addEventListener(name, (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); });
+      });
+
+      dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) handleFiles(files, document.getElementById(listId), onFilesLoaded);
+      });
+      input.addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0) handleFiles(files, document.getElementById(listId), onFilesLoaded);
+      });
+    }
+
+    async function handleFiles(files, listElement, callback) {
+      const loadedContents = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const text = await file.text();
+        loadedContents.push(text);
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.innerHTML = `<span>📄 ${file.name}</span><span>${(file.size / 1024).toFixed(1)} KB</span>`;
+        listElement.appendChild(item);
+      }
+      callback(loadedContents);
+    }
+
+    function parseDeckTextGroups(text) {
+      const invs = {}; 
+      const lines = text.split('\n');
+      const dbName = dbs[currentGame].byName;
+      
+      let currentDeckName = '未命名牌組';
+      let currentInvName = '未提供';
+      let currentKey = '未命名牌組';
+      let isSideDeck = false;
+      let currentType = '其他';
+      let firstValidLine = true;
+
+      lines.forEach(rawLine => {
+        let line = rawLine.replace(/^\uFEFF/, '').trim();
+        if (!line) return;
+
+        if (line.startsWith('Packs:') || line.startsWith('平行:') || line.startsWith('特性選擇:')) return;
+
+        if (currentDeckName === '未命名牌組' && !line.match(/^\d+x/)) {
+            currentDeckName = line.replace(/^#\s*/, '');
+            currentKey = currentDeckName;
+            return;
+        }
+
+        const lLow = line.toLowerCase();
+        const isHeader = /^\**[A-Za-z\s\u4e00-\u9fa5]+\**\s*(?:\(\d+\))?$/.test(line) && !/^\d+x/.test(line);
+        if (isHeader) {
+            let matchedCategory = false;
+            if (currentGame === 'arkham') {
+                if (line.includes('支援') || lLow.includes('asset')) { currentType = '支援'; matchedCategory = true; }
+                else if (line.includes('事件') || lLow.includes('event')) { currentType = '事件'; matchedCategory = true; }
+                else if (line.includes('技能') || lLow.includes('skill')) { currentType = '技能'; matchedCategory = true; }
+                else if (line.includes('敵人') || lLow.includes('enemy')) { currentType = '敵人'; matchedCategory = true; }
+                else if (line.includes('詭計') || lLow.includes('treachery')) { currentType = '詭計'; matchedCategory = true; }
+            } else {
+                if (line.includes('盟友') || lLow.includes('ally') || lLow.includes('allies')) { currentType = '盟友'; matchedCategory = true; }
+                else if (line.includes('事件') || lLow.includes('event')) { currentType = '事件'; matchedCategory = true; }
+                else if (line.includes('支援') || lLow.includes('support')) { currentType = '支援'; matchedCategory = true; }
+                else if (line.includes('升級') || lLow.includes('upgrade')) { currentType = '升級'; matchedCategory = true; }
+                else if (line.includes('資源') || lLow.includes('resource')) { currentType = '資源'; matchedCategory = true; }
+                else if (line.includes('支線') || lLow.includes('side scheme')) { currentType = '支線密謀'; matchedCategory = true; }
+            }
+            if (matchedCategory) return;
+        }
+
+        if (currentInvName === '未提供' && !line.match(/^\d+x/)) {
+            let invCheck = line.replace(/^調查員:\s*/, '').replace(/^Investigator:\s*/i, '');
+            if (invCheck !== line) {
+                currentInvName = invCheck;
+                currentKey = `${currentDeckName}(${currentInvName})`;
+                return;
+            }
+        }
+
+        if (line.includes('副牌組') || line.toLowerCase().includes('side deck')) { isSideDeck = true; return; }
+        if (line.startsWith('_') && line.includes('_')) return; 
+        if (line.startsWith('#') || line.startsWith('**') || line.startsWith('經驗值')) return;
+
+        let clean = line.replace(/^[\-\*\+]\s*/, '').trim();
+        let qty = 1; let xp = 0; let packText = '';
+
+        let qtyMatch = clean.match(/^(\d+)\s*[xX]\s*(.+)/);
+        if (qtyMatch) {
+          qty = parseInt(qtyMatch[1], 10); clean = qtyMatch[2].trim();
+        } else {
+            let qtyMatchEnd = clean.match(/(.+?)\s+[xX]\s*(\d+)$/);
+            if (qtyMatchEnd) {
+                qty = parseInt(qtyMatchEnd[2], 10); clean = qtyMatchEnd[1].trim();
+            }
+        }
+
+        let name = clean;
+        let packMatch = name.match(/(.*?)\s*\(([^)]+)\)$/);
+        if (packMatch) {
+            let insideParens = packMatch[2].trim();
+            if (!isNaN(insideParens)) { xp = parseInt(insideParens, 10); } 
+            else { packText = insideParens; }
+            name = packMatch[1].trim(); 
+        }
+
+        if (!name) return;
+        
+        const pureName = sanitizeDbName(name);
+        const candidates = dbName[pureName] || [];
+        let cardData = { faction: 'unknown', cost: null };
+        
+        if (candidates.length > 0) {
+            if (currentGame === 'marvel') {
+                const mappedType = {
+                    '盟友': 'ally', '事件': 'event', '支援': 'support', 
+                    '升級': 'upgrade', '資源': 'resource', '支線密謀': 'player_side_scheme'
+                }[currentType] || 'other';
+                
+                let typeMatches = candidates.filter(c => c.type_code === mappedType);
+                if (typeMatches.length > 1 && packText) {
+                    let exactMatch = typeMatches.find(c => c.pack_name && c.pack_name.toLowerCase().includes(packText.toLowerCase()));
+                    cardData = exactMatch || typeMatches[0];
+                } else if (typeMatches.length > 0) {
+                    cardData = typeMatches[0];
+                } else {
+                    cardData = candidates[0];
+                }
+            } else {
+                cardData = candidates[0];
+            }
+        }
+
+        if (currentGame === 'marvel' && cardData.faction === 'hero') return;
+
+        const uniqueKey = `${name}__${xp}__${packText}`; 
+        let displayName = name;
+        if (currentGame === 'arkham' && xp > 0) displayName += ` (${xp})`;
+        else if (currentGame === 'marvel' && packText) displayName += ` (${packText})`;
+
+        if (!invs[currentKey]) invs[currentKey] = {};
+        if (!invs[currentKey][uniqueKey]) {
+          invs[currentKey][uniqueKey] = { 
+              name: displayName, count: 0, type: currentType, 
+              isSideDeck: isSideDeck, faction: cardData.faction, cost: cardData.cost
+          };
+        }
+        invs[currentKey][uniqueKey].count += qty;
+      });
+
+      return invs;
+    }
+
+    function startCompare() {
+      if (filesDataA.length === 0 || filesDataB.length === 0) {
+        alert(i18n[currentLang].alertEmpty);
+        return;
+      }
+
+      const invsA = parseDeckTextGroups(filesDataA.join('\n'));
+      const invsB = parseDeckTextGroups(filesDataB.join('\n'));
+      const totalsA = {}; const totalsB = {}; const allKeys = new Set();
+
+      for (const inv in invsA) {
+        for (const key in invsA[inv]) { totalsA[key] = (totalsA[key] || 0) + invsA[inv][key].count; allKeys.add(key); }
+      }
+      for (const inv in invsB) {
+        for (const key in invsB[inv]) { totalsB[key] = (totalsB[key] || 0) + invsB[inv][key].count; allKeys.add(key); }
+      }
+
+      const returnList = []; const fetchList = []; const keepList = [];   
+      let tKeep = 0, tRet = 0, tFet = 0;
+
+      allKeys.forEach(key => {
+        const countA = totalsA[key] || 0;
+        const countB = totalsB[key] || 0;
+
+        let globalKeep = Math.min(countA, countB);
+        let globalReturn = countA - globalKeep;
+        let globalFetch = countB - globalKeep;
+
+        let remainingReturn = globalReturn;
+        let remainingKeep = globalKeep;
+
+        for (const inv in invsA) {
+          if (invsA[inv][key]) {
+             const totalCountA = invsA[inv][key].count;
+             const takeReturn = Math.min(remainingReturn, totalCountA);
+             if (takeReturn > 0) {
+               returnList.push({ inv: inv, ...invsA[inv][key], count: takeReturn });
+               remainingReturn -= takeReturn; tRet += takeReturn;
+             }
+             const takeKeep = totalCountA - takeReturn;
+             if (takeKeep > 0) {
+               keepList.push({ inv: inv, ...invsA[inv][key], count: takeKeep });
+               remainingKeep -= takeKeep; tKeep += takeKeep;
+             }
+          }
+        }
+
+        let remainingFetch = globalFetch;
+        for (const inv in invsB) {
+          if (invsB[inv][key]) {
+             const neededByInv = invsB[inv][key].count;
+             const takeFetch = Math.min(remainingFetch, neededByInv);
+             if (takeFetch > 0) {
+               fetchList.push({ inv: inv, ...invsB[inv][key], count: takeFetch });
+               remainingFetch -= takeFetch; tFet += takeFetch;
+             }
+          }
+        }
+      });
+
+      renderGroupedGrid('keepList', keepList, 'keepCount', tKeep, 'badge-green');
+      renderGroupedGrid('returnList', returnList, 'returnCount', tRet, 'badge-red');
+      renderGroupedGrid('fetchList', fetchList, 'fetchCount', tFet, 'badge-blue');
+    }
+    
+    function getCostVal(cost) {
+      if (cost === 'X' || cost === 'x') return -1; 
+      if (cost === null || cost === undefined) return 999; 
+      return parseInt(cost, 10) || 0;
+    }
+
+    function renderGroupedGrid(elementId, items, countId, totalCount, badgeClass) {
+      const containerEl = document.getElementById(elementId);
+      const copyStr = currentLang === 'zh' ? ` ${i18n[currentLang].copies}` : i18n[currentLang].copies;
+      document.getElementById(countId).innerText = `${totalCount}${copyStr}`;
+      containerEl.innerHTML = '';
+      
+      if (items.length === 0) {
+        containerEl.innerHTML = `<div style="color:#777; padding-top:10px;">${i18n[currentLang].noCard}</div>`;
+        return;
+      }
+
+      const groupedByInv = {};
+      items.forEach(item => {
+        if (!groupedByInv[item.inv]) groupedByInv[item.inv] = [];
+        groupedByInv[item.inv].push(item);
+      });
+
+      const invKeys = Object.keys(groupedByInv);
+      const gridEl = document.createElement('div');
+      gridEl.className = 'inv-grid';
+      if (invKeys.length >= 2) gridEl.classList.add('two-cols');
+
+      const typeWeightArkham = { '支援': 1, '事件': 2, '技能': 3, '敵人': 4, '詭計': 5, '其他': 6 };
+      const typeWeightMarvel = { '盟友': 1, '升級': 2, '支援': 3, '事件': 4, '支線密謀': 5, '資源': 6, '其他': 7 };
+      const typeWeight = currentGame === 'arkham' ? typeWeightArkham : typeWeightMarvel;
+      
+      invKeys.sort().forEach(invName => {
+        const invItems = groupedByInv[invName];
+        
+        invItems.sort((a, b) => {
+          if (a.isSideDeck !== b.isSideDeck) return a.isSideDeck ? 1 : -1;
+          const wA = typeWeight[a.type] || 99; const wB = typeWeight[b.type] || 99;
+          if (wA !== wB) return wA - wB;
+          const fA = factionWeight[a.faction] || 99; const fB = factionWeight[b.faction] || 99;
+          if (fA !== fB) return fA - fB;
+          const cA = getCostVal(a.cost); const cB = getCostVal(b.cost);
+          if (cA !== cB) return cA - cB;
+          return a.name.localeCompare(b.name);
+        });
+
+        const blockEl = document.createElement('div');
+        blockEl.className = 'inv-block';
+
+        const invHeader = document.createElement('div');
+        invHeader.className = 'inv-header';
+        const invTotal = invItems.reduce((sum, x) => sum + x.count, 0);
+        let displayInvName = invName;
+        if (invName.includes('未提供')) displayInvName = invName.replace('未提供', i18n[currentLang].unknownInv);
+        invHeader.innerHTML = `<span>🕵️ ${displayInvName}</span> <span style="color:#aaa; font-weight:normal;">${i18n[currentLang].subtotal} ${invTotal}</span>`;
+        blockEl.appendChild(invHeader);
+
+        const ulEl = document.createElement('ul');
+        let currentDeckType = null;
+        let currentCardType = null;
+
+        invItems.forEach(item => {
+          if (currentDeckType !== item.isSideDeck) {
+            const deckHeader = document.createElement('div');
+            deckHeader.className = 'deck-type-header';
+            deckHeader.innerText = item.isSideDeck ? i18n[currentLang].sideDeck : i18n[currentLang].mainDeck;
+            ulEl.appendChild(deckHeader);
+            currentDeckType = item.isSideDeck;
+            currentCardType = null; 
+          }
+
+          if (currentCardType !== item.type) {
+            const catHeader = document.createElement('div');
+            catHeader.className = 'card-type-header';
+            catHeader.innerText = getTypeName(item.type) + ':';
+            ulEl.appendChild(catHeader);
+            currentCardType = item.type;
+          }
+          
+          const dotColor = factionColors[item.faction] || factionColors['unknown'];
+          const costDisplay = (item.cost !== null && item.cost !== undefined) ? `<span class="card-cost">[${item.cost}]</span>` : '';
+          
+          const li = document.createElement('li');
+          li.className = 'card-item';
+          const badgeStr = currentLang === 'zh' ? `${item.count} 張` : `${item.count}x`;
+          li.innerHTML = `
+            <div class="card-name-wrapper">
+              <span class="faction-dot" style="background-color: ${dotColor};"></span>
+              ${costDisplay}
+              <span>${item.name}</span>
+            </div>
+            <span class="badge ${badgeClass}">${badgeStr}</span>`;
+          ulEl.appendChild(li);
+        });
+
+        blockEl.appendChild(ulEl);
+        gridEl.appendChild(blockEl);
+      });
+
+      containerEl.appendChild(gridEl);
+    }
+  </script>
+</body>
+</html>
